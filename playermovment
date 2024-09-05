@@ -1,0 +1,255 @@
+[RequireComponent(typeof(Rigidbody))]
+public class Playermovment : MonoBehaviour
+{
+    [Header("Speed")]
+    
+    private float MoveSpeed;
+
+    public float WalkSpeed;
+    public float SprintSpeed;
+    public float SildSpeed;
+    public float CrouchSpeed;
+
+    [Header("Jumping")]
+    public float JumpHight = 10f;
+    public float feetRaduis;
+
+
+    [Header("Drag")]
+
+    public float AirDrag = 3f;
+    public float GroundDrag = 10f;
+    [Space]
+    public float gravity = 5f;
+
+
+    [Header("References")]
+    public Rigidbody rb;
+    float X, Z;
+    public LayerMask Ground;
+    public Transform feet;
+
+    RaycastHit slopeHit;
+   
+    public ParticleSystem smoke;
+
+   
+    public Text Text;
+
+    Vector3 slopeDir;
+    Vector3 MoveDir;
+    Vector3 InputDir;
+  
+
+    [Header("bools")]
+
+    public bool OnGround;
+    public bool isCrouching;
+    public bool isSprinting;
+    public bool isSilding;
+    public bool anyPress;
+
+    [Header("Timer")]
+
+    public float sildeTimer = 0f;
+    public float MaxSildeTime = 5f;
+    public MovementState state;
+
+    [Header("Keys")]
+
+    public KeyCode JumpKey = KeyCode.Space;
+    public KeyCode SprintKey = KeyCode.LeftShift;
+    public KeyCode CrouchKey = KeyCode.LeftControl;
+
+    public enum MovementState
+    { 
+        Walking,
+        Sprinting,
+        Crouch,
+        Silding,
+        air,
+       
+    }
+
+    private void Update()
+    {
+        StateHandler();
+        Movement();
+
+        Text.text = state.ToString();
+        
+    }
+
+    private void FixedUpdate()
+    {
+        input();
+        Drag();
+
+      
+    }
+
+     void StateHandler()
+    {
+        if(Input.GetKey(SprintKey) && OnGround)
+        {
+            state = MovementState.Sprinting;
+            MoveSpeed = SprintSpeed;
+          
+        }
+        else if (OnGround)
+        {
+            state = MovementState.Walking;
+            MoveSpeed = WalkSpeed;
+        }
+        else
+        {
+            state = MovementState.air;
+        }
+
+
+        if(Input.GetKey(CrouchKey) && OnGround)
+        {
+            state = MovementState.Crouch;
+            MoveSpeed = CrouchSpeed;
+            Crouch();
+        }
+        else if (Input.GetKeyUp(CrouchKey))
+        {
+            state = MovementState.Walking;
+            MoveSpeed = WalkSpeed;
+            UnCrouch();
+        }
+        
+
+        
+    }
+
+    void input()
+    {
+        X = Input.GetAxisRaw("Horizontal");
+        Z = Input.GetAxisRaw("Vertical");
+
+        anyPress = X != 0 || Z != 0;
+
+        OnGround  = Physics.CheckSphere(feet.position, feetRaduis, Ground);
+
+        slopeDir = Vector3.ProjectOnPlane(MoveDir, slopeHit.normal);
+
+        InputDir = transform.right * X + transform.forward * Z;
+
+        if (Input.GetKey(JumpKey) && OnGround == true )
+        {
+            Jump();
+        }
+
+        if (OnGround && OnSlope())
+        {
+            rb.AddForce(slopeDir * MoveSpeed, ForceMode.Acceleration);
+        }
+
+        if(rb.velocity.y <= -10f && OnGround)
+        {
+            PlaySmoke();
+        }
+
+        
+     
+    }
+
+    private bool OnSlope()
+    {
+        if (Physics.Raycast(transform.position, Vector3.down, out slopeHit, feetRaduis))
+        {
+            if (slopeHit.normal != Vector3.up)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+
+        }
+        return false;
+    }
+
+    private void Drag()
+    {
+        if (OnGround == true)
+        {
+            rb.drag = GroundDrag;
+        }
+        else if (OnGround == false)
+        {
+            rb.drag = AirDrag;
+            Gravity();
+        }
+    }
+
+    void PlaySmoke()
+    {
+        smoke.Play();
+    }
+    void Crouch()
+    {
+        transform.localScale = new Vector3(1, .5f, 1);
+        isCrouching = true;
+       
+    }
+
+    void UnCrouch()
+    {
+        transform.localScale = new Vector3(1, 1, 1);
+        isCrouching = false;
+       
+    }
+
+    void StartSilding()
+    {
+        isSilding = true;
+
+        sildeTimer++;
+
+      if(sildeTimer <= MaxSildeTime)
+        {
+            StopSilding();
+        }
+    }
+
+    void StopSilding()
+    {
+        isSilding = false;
+        sildeTimer = 0f;
+        //rb.AddForce(InputDir.normalized * MoveSpeed, ForceMode.VelocityChange);
+    }
+
+    void Movement()
+    {
+       
+        MoveDir = transform.right * X + transform.forward * Z;
+
+        rb.AddForce(MoveDir.normalized * MoveSpeed * 2f, ForceMode.Force);
+
+
+     
+    }
+
+    void Jump()
+    {
+        rb.AddForce(transform.up * JumpHight * 2f, ForceMode.Impulse);
+    }
+
+    void Gravity()
+    {
+        rb.AddForce(-transform.up.normalized * gravity, ForceMode.Acceleration);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.red;
+
+        Gizmos.DrawWireSphere(feet.position, feetRaduis);
+
+        Gizmos.DrawRay(transform.position, transform.forward * 4f);
+    }
+}
